@@ -44,7 +44,8 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 json_output_path = "/home/limlab/catkin_ws/src/face_recognition_pkg/output"
 openpose_params_json_file = "/home/limlab/catkin_ws/src/face_recognition_pkg/openpose_params.json"
 
-shutil.rmtree(json_output_path)  # json形式ファイルの保存されたフォルダの削除（初期化）
+if os.path.exists(json_output_path): #既にjson_file_pathが存在する場合
+    shutil.rmtree(json_output_path)  # json形式ファイルの保存されたフォルダの削除（初期化）
 os.mkdir(json_output_path)  # json形式ファイルを保存するフォルダの作成
 file_input_path = '/home/limlab/ビデオ/src_hirano.mp4'  # 動画の読み込みパス
 movie = cv2.VideoCapture(file_input_path)  # 動画の読み込み
