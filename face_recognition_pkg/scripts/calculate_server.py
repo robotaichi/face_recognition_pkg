@@ -4,7 +4,6 @@
 #Python2.7用プログラム
 
 import os
-#import japanize_matplotlib
 from numpy import linalg as LA
 import numpy as np
 from natsort import natsorted
@@ -247,6 +246,7 @@ class Calculate():
 
     def json_file_process(self): #jsonファイルの処理
         json_files = natsorted(glob(self.json_file_path + '/*_keypoints.json')) #指定パスにある"呼び出された段階での"全てのjsonファイルを人間が扱う数の自然な順番(natsorted：natural sorted。0から1,..10,..,100,..)に読み込む。globは*（ワイルドカード：任意の変数xに相当）を扱えるようにするもの。json形式ファイルが増えていく度にjson_filesの中身を更新する必要があるため、毎回呼び出されるところ（今回はこの行）に記述
+        #print(json_files)
         json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
         print(u"{}".format(os.path.basename(str(json_file))).encode("utf-8")) #日本語も扱えるutf-8型にエンコード
 

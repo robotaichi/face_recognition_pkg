@@ -39,7 +39,7 @@ class openpose():
         self.params["part_candidates"] = True #キー：part_candidates、データ：True
         self.params["face"] = True #キー：face、データ：True。顔検出を有効
         #params["hand"] = True #キー：hand、データ：True。手検出を有効
-        self.params["net_resolution"] = "320x176" #キー：net_resolution、データ：320x176。認識精度は落ちるが、処理速度は向上。16の倍数で数字を指定
+        self.params["net_resolution"] = "256x112" #キー：net_resolution、データ：320x176。認識精度は落ちるが、処理速度は向上。16の倍数で数字を指定
         #params["net_resolution"] = "-1x16" #キー：net_resolution、データ：320x176。認識精度は落ちるが、処理速度は向上。16の倍数で数字を指定
 
         self.write_json() #jsonファイルに書き込み
