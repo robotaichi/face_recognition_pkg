@@ -315,13 +315,13 @@ class face_recognition():
 
 
     def calculate_front_face_percentage(self, frames_count): #正面を向いた割合を計算
-        print("front_face_count:{}".format(self.front_face_count))
+        print("\nfront_face_count:{}".format(self.front_face_count))
         print("frames_count:{}".format(frames_count))
         front_face_percentage = (float(self.front_face_count) / float(frames_count))*100 #正面を向いた割合を計算
         print("front_face_percentage:{}%".format(front_face_percentage))
         with open("/home/limlab/catkin_ws/src/face_recognition_pkg/info.csv", "a") as f: #csvファイルを追記モードで開く
             writer = csv.writer(f)
-            writer.writerow([front_face_percentage, (float(self.front_face_count), float(frames_count))]) #正面を向いた割合をcsvファイルに書き込み
+            writer.writerow([front_face_percentage, float(self.front_face_count), float(frames_count)]) #正面を向いた割合をcsvファイルに書き込み
         return front_face_percentage
 
 
@@ -343,24 +343,24 @@ class face_recognition():
         print("emotion_value:{}".format(self.emotion_value))
         with open("/home/limlab/catkin_ws/src/face_recognition_pkg/info.csv", "a") as f: #csvファイルを追記モードで開く
             writer = csv.writer(f)
-            writer.writerow([self.emotion_value, (self.positive_emotion_count, self.normal_emotion_count, self.negative_emotion_count)]) #正面を向いた割合をcsvファイルに書き込み
+            writer.writerow([self.emotion_value, self.positive_emotion_count, self.normal_emotion_count, self.negative_emotion_count]) #正面を向いた割合をcsvファイルに書き込み
         return self.emotion_value
 
 
 
-    def write_csv(self, frames_count): #csvファイルに書き込み 
+    def write_csv(self, frames_count, message1): #csvファイルに書き込み 
         with open("/home/limlab/catkin_ws/src/face_recognition_pkg/info.csv", "a") as f: #csvファイルを追記モードで開く
             writer = csv.writer(f)
             emotion = self.emotion_list[frames_count]
-            writer.writerow([frames_count, (self.front_face_count, emotion)]) #フレーム数と正面を向いたフレームカウント数をcsvファイルに書き込み
+            writer.writerow([frames_count, self.front_face_count, message1, emotion]) #フレーム数と正面を向いたフレームカウント数をcsvファイルに書き込み
 
 
 
     def voice_recognition_necessity_judge(self, front_face_percentage, emotion_value): #音声録音の必要性の判定（再度説明する必要があるか尋ねるか尋ねないかの判定）
         if (front_face_percentage >= 80) or (emotion_value > 0):
-            self.voice_recognition_necessity = True
-        else:
             self.voice_recognition_necessity = False
+        else:
+            self.voice_recognition_necessity = True
         return self.voice_recognition_necessity
 
 
@@ -374,7 +374,7 @@ class face_recognition():
         self.video.release()  # 書き込み動画を閉じる
         cv2.destroyAllWindows()  # すべてのウィンドウを閉じる
         self.plot_graph() #グラフにプロット
-        print("voice_recognition_necessity:{}".format(voice_recognition_necessity))
+        print("voice_recognition_necessity:{}\n".format(voice_recognition_necessity))
         sys.exit()
 
 
@@ -400,7 +400,7 @@ class face_recognition():
                 processed_frame, copy_canvas, self.message.openpose_version)  # ビデオの表示と書き込み
             # print(os.path.basename(json_file)) #今現在のjson形式ファイルを表示
             self.diff_list.append(diff)
-            self.write_csv(frames_count) #csvファイルに書き込み
+            self.write_csv(frames_count, message1) #csvファイルに書き込み
 
             if cv2.waitKey(1) & 0xFF == ord('q'):  # qキーで終了
                 self.finish(frames_count)  # 終了
