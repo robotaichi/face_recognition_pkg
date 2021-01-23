@@ -251,6 +251,7 @@ class face_recognition():
         self.video.write(processed_frame)  # 1フレームずつ書き込み＝動画の作成
         # canvas = cv2.resize(canvas, (250,300)) #動画サイズの縮小
         cv2.imshow("Emotion Probabilities", canvas)
+        cv2.imwrite('/home/limlab/catkin_ws/src/face_recognition_pkg/output.png', canvas)
 
 
 

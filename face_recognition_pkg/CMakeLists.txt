@@ -10,6 +10,7 @@ project(face_recognition_pkg)
 find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
+  actionlib_msgs
   message_generation
 )
 
@@ -57,19 +58,23 @@ add_service_files(
   FILES
   face_recognition_service.srv
   calculate_service.srv
+  realsense_service.srv
+  voice_recognition_necessity_service.srv
+  check_finish_service.srv
 )
 
 ## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+add_action_files(
+  FILES
+  realsense_action.action
+  check_finish_action.action
+)
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
- DEPENDENCIES
- std_msgs
+  DEPENDENCIES
+  std_msgs
+  actionlib_msgs
 )
 
 ################################################

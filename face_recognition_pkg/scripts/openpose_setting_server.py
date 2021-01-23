@@ -39,8 +39,7 @@ class openpose():
         self.params["part_candidates"] = True #キー：part_candidates、データ：True
         self.params["face"] = True #キー：face、データ：True。顔検出を有効
         #params["hand"] = True #キー：hand、データ：True。手検出を有効
-        self.params["net_resolution"] = "256x112" #キー：net_resolution、データ：320x176。認識精度は落ちるが、処理速度は向上。16の倍数で数字を指定
-        #params["net_resolution"] = "-1x16" #キー：net_resolution、データ：320x176。認識精度は落ちるが、処理速度は向上。16の倍数で数字を指定
+        self.params["net_resolution"] = "192x48" #キー：net_resolution、データ：320x176。256x112。208x64認識精度は落ちるが、処理速度は向上。16の倍数で数字を指定
 
         self.write_json() #jsonファイルに書き込み
 
@@ -109,9 +108,9 @@ class Server(): #サーバーのクラス
 
 
     def success_log(self, req): #成功メッセージの表示（callback関数）
-        rospy.loginfo("\nサービスのリクエストがありました：\nmessage = {}\n".format(req.openpose_request))
+        rospy.loginfo("\nopenposeサービスのリクエストがありました：\nmessage = {}\n".format(req.openpose_request))
         self.op.make_Text()
-        self.service_message.openpose_response = "リクエストに応えました" #クライアントに渡す返り値のメッセージ
+        self.service_message.openpose_response = "openposeサービスのリクエストに応えました" #クライアントに渡す返り値のメッセージ
         return self.service_message.openpose_response #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
 
 

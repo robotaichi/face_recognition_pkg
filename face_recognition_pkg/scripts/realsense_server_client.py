@@ -5,16 +5,18 @@
 
 import traceback  # エラーメッセージの表示に使用
 import shutil  # フォルダの削除に使用
-import pyopenpose as op  # OpenPoseのインポート
-from face_recognition_pkg.srv import calculate_service # サービスファイルの読み込み（from パッケージ名.srv import 拡張子なしサービスファイル名）
-from face_recognition_pkg.srv import face_recognition_service # サービスファイルの読み込み（from パッケージ名.srv import 拡張子なしサービスファイル名）
-service_message = face_recognition_service()
-from face_recognition_pkg.msg import face_recognition_message # メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしメッセージファイル名）
+import pyopenpose as op  # OpenPoseのPythonラッパー（ラップのように機能を包んで、別の環境でも実行できるようにしたもの）
+from speech_recognition_pkg.msg import speech_recognition_message #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしメッセージファイル名）
+from face_recognition_pkg.srv import calculate_service, face_recognition_service, realsense_service, voice_recognition_necessity_service, check_finish_service # サービスファイルの読み込み（from パッケージ名.srv import 拡張子なしサービスファイル名）
+face_recognition_service_message = face_recognition_service()
+check_finish_service_message = check_finish_service()
+from face_recognition_pkg.msg import face_recognition_message, realsense_actionAction, realsense_actionResult, check_finish_actionAction, check_finish_actionResult, check_finish_actionGoal #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしアクションメッセージファイル名）。actionフォルダで定義した「アクションファイル名.action」ファイルを作成し、catkin_makeすると、「アクションファイル名Action.msg」、「アクションファイル名Feedback.msg」、「アクションファイル名ActionFeedback.msg」、「アクションファイル名Goal.msg」、「アクションファイル名ActionGoal.msg」、「アクションファイル名Result.msg」、「アクションファイル名ActionResult.msg」が生成される。生成されたアクションメッセージファイルは、「ls /home/limlab/catkin_ws/devel/share/パッケージ名/msg」コマンドで確認できる。アクションサーバ側は、「アクションファイル名Action.msg」、「アクションファイル名Result.msg」（途中経過が必要な場合は、「アクションファイル名Feedback.msg」）をインポートする。「アクションファイル名Goal.msg」は、アクションクライアントからリクエストがあった場合に呼び出されるコールバック関数の引数として取得できるため、アクションサーバ側は必要ない。アクションクライアント側は、「アクションファイル名Action.msg」、「アクションファイル名Result.msg」、「アクションファイル名Goal.msg」（途中経過が必要な場合は、「アクションファイル名Feedback.msg」）をインポートする。
 from pyrealsensecv import RealsenseCapture #realsenseをcv2.VideoCapture(0)のように扱えるライブラリ
 import sys
 import json
 import imutils  # 基本的な画像処理操作を簡単に行うためのライブラリimutilsの読み込み
 import rospy
+import actionlib
 import time
 import glob
 from natsort import natsorted
@@ -39,7 +41,7 @@ warnings.filterwarnings('ignore')
 #TensorFlowでGPUを強制的に使用
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
-opWrapper = op.WrapperPython()
+# opWrapper = op.WrapperPython()
 
 #ファイルパス
 json_output_path = "/home/limlab/catkin_ws/src/face_recognition_pkg/output"
@@ -88,7 +90,7 @@ class openpose():  # OpenPoseのクラス
 
 
 
-    def op_start(self):  # OpenPoseの開始
+    def op_start(self, opWrapper):  # OpenPoseの開始
         opWrapper.configure(self.set_params())  # OpenPoseのパラメータ設定
         opWrapper.start()  # OpenPoseの開始
         print("################################################################################")
@@ -163,7 +165,8 @@ class face_recognition():
         self.m_length = 0
         # messageの型を作成
         self.message = face_recognition_message()
-        self.cli = cal_Client()
+        self.cli = Cal_Client()
+        self.sub = Subscribers()
         self.red_color = (0, 0, 255)
         self.sky_blue_color = (255, 255, 0)
         self.yellow_color = (0, 255, 255)
@@ -203,8 +206,7 @@ class face_recognition():
 
 
 
-    def face_detection_setting(self):  # 顔認識の設定
-        calculate_message = calculate_service()
+    def face_detection_setting(self, opWrapper):  # 顔認識の設定
         # OpenPoseによる画像処理
         datum = op.Datum()  # データ受け渡し用オブジェクト（データム）の作成
         # 動画から1フレーム読み込む。fragはret(return valueの略、戻り値の意味）の表記もあるが、同じもの。ブール値（TrueかFalse）の情報が入る。今回は使っていない。
@@ -216,7 +218,7 @@ class face_recognition():
         frame_openpose = datum.cvOutputData  # OpenPoseの骨格を反映したフレーム
         # グレースケール変換（顔検出に使用するため）
         gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        message1, frames_count, no_detect_count, diff = self.call_calculate_service(calculate_message)
+        message1, frames_count, no_detect_count, diff = self.call_calculate_service() #計算サービスを呼び出し、計算結果（返り値）を取得
         return frame_openpose, gray_image, message1, frames_count, no_detect_count, diff
 
 
@@ -281,6 +283,7 @@ class face_recognition():
         self.video.write(processed_frame)  # 1フレームずつ書き込み＝動画の作成
         # canvas = cv2.resize(canvas, (250,300)) #動画サイズの縮小
         cv2.imshow("Emotion Probabilities", canvas)
+        cv2.waitKey(1) #すぐに表示が終わってしまうのを回避。ミリ秒で指定
 
 
 
@@ -362,7 +365,7 @@ class face_recognition():
 
 
     def voice_recognition_necessity_judge(self, front_face_percentage, emotion_value): #音声録音の必要性の判定（再度説明する必要があるか尋ねるか尋ねないかの判定）
-        if (front_face_percentage >= 80) or (emotion_value >= 0):
+        if (front_face_percentage >= 70) or (emotion_value > 0):
             self.voice_recognition_necessity = False
         else:
             self.voice_recognition_necessity = True
@@ -370,29 +373,41 @@ class face_recognition():
 
 
 
-    def finish(self, frames_count, no_detect_count):  # 終了処理
-        print("\n終了")
+    def request_voice_recognition_necessity(self, frames_count, no_detect_count): #音声認識の必要性の有無の要求
         front_face_percentage = self.calculate_front_face_percentage(frames_count, no_detect_count) #正面を向いた割合を計算
         emotion_value = self.calculate_emotion_value() #表情値を計算
         voice_recognition_necessity = self.voice_recognition_necessity_judge(front_face_percentage, emotion_value) #音声録音の必要性の判定
-        self.cap.release()  # 読み込み動画を閉じる
-        self.video.release()  # 書き込み動画を閉じる
-        cv2.destroyAllWindows()  # すべてのウィンドウを閉じる
-        self.plot_graph() #グラフにプロット
         print("voice_recognition_necessity:{}\n".format(voice_recognition_necessity))
-        sys.exit()
+        return voice_recognition_necessity
 
 
 
-    def call_calculate_service(self, calculate_message):
-        message1, frames_count, no_detect_count, diff = self.cli.calculate_service_request(calculate_message)
+    def close_movies_and_windows(self): #動画やウィンドウを閉じる
+        self.cap.release() #読み込み動画を閉じる
+        self.video.release() #書き込み動画を閉じる
+        cv2.destroyAllWindows() #すべてのウィンドウを閉じる
+
+
+
+    def finish(self, frames_count, no_detect_count): #終了処理
+        print("\n終了")
+        voice_recognition_necessity = self.request_voice_recognition_necessity(frames_count, no_detect_count) #音声認識の必要性の有無の要求
+        self.close_movies_and_windows() #動画やウィンドウを閉じる
+        self.plot_graph() #グラフにプロット
+        #sys.exit()
+        return voice_recognition_necessity
+
+
+
+    def call_calculate_service(self):
+        message1, frames_count, no_detect_count, diff = self.cli.calculate_service_request()
         return message1, frames_count, no_detect_count, diff
 
 
 
-    def main_loop(self):  # メイン処理のループ
+    def main_loop(self, opWrapper):  # メイン処理のループ
         while not rospy.is_shutdown():
-            frame_openpose, gray_image, message1, frames_count, no_detect_count, diff = self.face_detection_setting()  # 顔認識の設定
+            frame_openpose, gray_image, message1, frames_count, no_detect_count, diff = self.face_detection_setting(opWrapper)  # 顔認識の設定
             faces = self.face_detection(gray_image)  # 顔認識の実行
             copy_frame_openpose, copy_canvas = self.cv2_show_setting(
                 faces, self.canvas, frame_openpose, gray_image, message1)  # ビデオ描画の設定
@@ -407,39 +422,47 @@ class face_recognition():
             self.diff_list.append(diff)
             self.write_csv(frames_count, message1) #csvファイルに書き込み
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # qキーで終了
-                self.finish(frames_count, no_detect_count)  # 終了
+            # cfac = Check_Finish_Action_Client() #クラスのインスタンス生成
+            # check_finish_response = cfac.make_goal() #アクション目標（Goal）の作成
+            print(self.sub.realsense_tf)
+            # if cv2.waitKey(1) & 0xFF == ord('q'):  # qキーで終了
+            if self.sub.realsense_tf:
+                self.sub.realsense_tf = False
+                voice_recognition_necessity = self.finish(frames_count, no_detect_count)  # 終了
+                return voice_recognition_necessity #音声認識の必要性の有無（ブール値）を返す
 
 
 
-class op_Client():  # クライアントのクラス
+class OP_Client():  # クライアントのクラス
     def __init__(self):  # コンストラクタと呼ばれる初期化のための関数（メソッド）
         self.rate = rospy.Rate(1)  # 1秒間に1回データを受信する
-        self.op = openpose()
+        # self.op = openpose()
+
+
 
     def openpose_service_request(self):  # サービスのリクエスト
         rospy.wait_for_service('openpose_service')  # サービスが使えるようになるまで待機
         try:
             self.client = rospy.ServiceProxy(
-                'openpose_service', face_recognition_service)  # クライアント側で使用するサービスの定義
-            service_message.openpose_request = "サービスをリクエスト"
-            # 「戻り値 = self.client(引数)」。クライアントがsrvファイルで定義した引数（srvファイル内「---」の上側）を別ファイルのサーバーにリクエストし、サーバーからの返り値（srvファイル内「---」の下側）をresponseに代入
-            response = self.client(service_message.openpose_request)
-            rospy.loginfo("サービスのリクエストに成功：{}".format(
+                'openpose_service', face_recognition_service)  # クライアント側で使用するサービスの定義。サーバーからの返り値（srvファイル内「---」の下側）をresponseに代入
+            face_recognition_service_message.openpose_request = "OpenPoseサービスのリクエスト"
+            response = self.client(face_recognition_service_message.openpose_request)
+            rospy.loginfo("openposeサービスのリクエストに成功：{}".format(
                 response.openpose_response))
 
         except rospy.ServiceException:
-            rospy.loginfo("サービスのリクエストに失敗")
+            rospy.loginfo("openposeサービスのリクエストに失敗")
 
 
 
-class cal_Client():  # クライアントのクラス
+class Cal_Client():  # クライアントのクラス
     def __init__(self):  # コンストラクタと呼ばれる初期化のための関数（メソッド）
         self.rate = rospy.Rate(5)  # 1秒間に1回データを受信する
 
 
 
-    def calculate_service_request(self, calculate_message):  # サービスのリクエスト
+    def calculate_service_request(self):  # サービスのリクエスト
+        calculate_message = calculate_service()
         rospy.wait_for_service('calculate_service')  # サービスが使えるようになるまで待機
         try:
             self.client = rospy.ServiceProxy(
@@ -455,17 +478,187 @@ class cal_Client():  # クライアントのクラス
 
 
 
+class Check_Finish_Client():  # クライアントのクラス
+    def __init__(self):  # コンストラクタと呼ばれる初期化のための関数（メソッド）
+        self.rate = rospy.Rate(1)  # 1秒間に1回データを受信する
+
+
+
+    def check_finish_service_request(self):  # サービスのリクエスト
+        rospy.wait_for_service('check_finish_service')  # サービスが使えるようになるまで待機
+        try:
+            self.client = rospy.ServiceProxy(
+                'check_finish_service', check_finish_service)  # クライアント側で使用するサービスの定義
+            check_finish_service_message.check_finish_request = "リアルセンスの終了確認のリクエスト"
+            #「戻り値 = self.client(引数)」。クライアントがsrvファイルで定義した引数（srvファイル内「---」の上側）を別ファイルのサーバーにリクエストし、サーバーからの返り値（srvファイル内「---」の下側）をresponseに代入
+            response = self.client(check_finish_service_message.check_finish_request)
+            rospy.loginfo("リアルセンスの終了確認サービスのリクエストに成功：{}".format(
+                response.check_finish_response))
+            return response.check_finish_response
+
+        except rospy.ServiceException:
+            rospy.loginfo("リアルセンスの終了確認サービスのリクエストに失敗")
+
+
+
+class Realsense_Action_Server(): #アクションサーバーのクラス
+    def __init__(self):
+        #service_messageの型を作成
+        self.result = realsense_actionResult()
+        self.rate = rospy.Rate(0.3) #1秒間に0.3回
+        self.realsense_action_server = actionlib.SimpleActionServer('realsense_action', realsense_actionAction, execute_cb = self.action_callback, auto_start = False) #「realsense_action」という名前でrealsense_actionAction型のアクションサーバを作成
+        self.realsense_action_server.start() #アクションサーバーのスタート（アクションサーバへのリクエストがなければ、スルーして処理を続ける
+
+
+
+    def call_openpose(self): #openposeの呼び出し
+        op_cli = OP_Client()
+        op_cli.openpose_service_request()  # サービスのリクエスト
+        op = openpose()
+        op.op_start(self.opWrapper)
+        self.rate.sleep()
+
+
+
+    def exec_face_recognition(self): #顔認識の実行
+        fr_instance = face_recognition() #クラスのインスタンス生成
+        # while not rospy.is_shutdown():
+        voice_recognition_necessity = fr_instance.main_loop(self.opWrapper)
+        return voice_recognition_necessity
+
+
+
+    def action_callback(self, goal): #アクションサーバの実体（コールバック関数）
+        self.opWrapper = op.WrapperPython()
+        rospy.loginfo("\nアクションリクエストがありました：\nmessage = {}\n".format(goal.action_request)) #アクション目標（Goal）の取得
+        # if self.realsense_action_server.is_preempt_requested():
+        #     self.realsense_action_server.set_preempted()
+        self.call_openpose() #openposeの呼び出し
+        voice_recognition_necessity = self.exec_face_recognition() #顔認識の実行
+        self.result.voice_recognition_necessity = voice_recognition_necessity #音声認識の必要性の有無（ブール値）をアクション結果メッセージに代入
+        rospy.loginfo("\nリスポンスするアクション結果：{}\n".format(self.result.voice_recognition_necessity))
+        self.realsense_action_server.set_succeeded(self.result) #アクション結果をアクションクライアントに返す（アクション結果の送信）。ここでは、定義したアクション結果（Result）のインスタンスを引数に指定すること。アクションクライアント側は、「アクションクライアント名.wait_for_result(タイムアウト時間)」で接続待機し、「result = アクションクライアント名.get_result()」でアクション結果を取得
+        rospy.loginfo("アクション結果の送信完了")
+
+
+
+    # def start_action_server(self):
+    #     self.realsense_action_server.start() #アクションサーバーのスタート（アクションサーバへのリクエストがなければ、スルーして処理を続ける）
+
+
+
+class Subscribers(): #サブスクライバーのクラス
+    def __init__(self): #コンストラクタと呼ばれる初期化のための関数（メソッド）
+        self.count = 0 
+        self.realsense_tf = False
+        #speech_recognition_message型のメッセージを"recognition_txt_topic"というトピックから受信するサブスクライバーの作成
+        self.realsense_tf_subscriber = rospy.Subscriber('realsense_tf_topic', speech_recognition_message, self.callback)
+        # self.rate = rospy.Rate(0.1) #1秒間に0.1回データを受信する
+
+
+
+    def callback(self, message): #サブスクライバーがメッセージを受信した際に実行されるcallback関数。messageにはパブリッシャーによって配信されたメッセージ（データ）が入る
+        # 受信したデータを出力する
+        rospy.loginfo("realsense_tfを受信：{}".format(message.realsense_tf))
+        self.realsense_tf = message.realsense_tf
+        # return self.realsense_tf
+        # srv = Server() #クラスのインスタンス生成
+        # srv.make_Text(play_end)
+        # srv.service_response() #サービスの応答
+
+
+
+class Check_Finish_Action_Client():  #アクションクライアントのクラス
+    def __init__(self):  # コンストラクタと呼ばれる初期化のための関数（メソッド）
+        self.rate = rospy.Rate(1)  # 1秒間に1回データを受信する
+        self.goal = check_finish_actionGoal() #アクション目標（Goal）のインスタンス生成
+        self.result = realsense_actionResult() #アクション結果（Result）のインスタンス生成
+        self.check_finish_action_client = actionlib.SimpleActionClient('check_finish_action', check_finish_actionAction) #「check_finish_action」という名前でcheck_finish_actionAction型のアクションクライアントを作成
+
+
+
+    def make_goal(self): #アクション目標（Goal）の作成
+        self.goal.action_request = "終了確認アクションサーバのリクエスト"
+        self.action_service_request() #アクションサービスのリクエスト
+
+
+
+    def request_result(self): #アクション結果（Result）のリクエスト
+        # 結果が返ってくるまで1秒待機。ここで処理が一時停止する
+        self.check_finish_action_client.wait_for_result(rospy.Duration(1))
+        rospy.loginfo("終了確認アクションサービスのリクエストに成功：{}".format(self.result.check_finish_response))
+        return self.result.check_finish_response
+
+
+
+    def action_service_request(self): #アクションサービスのリクエスト
+        self.check_finish_action_client.wait_for_server(rospy.Duration(5)) #アクションサーバーが起動するまで待機。5秒でタイムアウト 
+        try:
+            self.check_finish_action_client.send_goal(self.goal) #アクションサーバにアクション目標（Goal）を送信。ここでは、定義したアクション目標（Goal）のインスタンスを引数に指定すること。アクション目標（Goal）を送信した時点でアクションサーバが起動（動作開始）し、アクションクライアントも次の処理を実行する（並列処理になる）
+
+        except rospy.ServiceException:
+            rospy.loginfo("終了確認アクションサービスのリクエストに失敗")
+
+
+
+# class Voice_recognition_necessity_Server(): #サーバーのクラス
+#     def __init__(self):
+#         #service_messageの型を作成
+#         self.service_message = voice_recognition_necessity_service()
+#         #self.pub = Publishsers() #パブリッシャークラスのインスタンス化(実体化)
+#         # self.op = openpose()
+
+
+
+#     # def call_openpose(self): #openposeの呼び出し
+#     #     op_cli = OP_Client()
+#     #     op_cli.openpose_service_request()  # サービスのリクエスト
+#     #     op = openpose()
+#     #     op.op_start()
+
+
+
+#     def exec_face_recognition(self, realsense_request): #顔認識の実行
+#         fr_instance = face_recognition()
+#         voice_recognition_necessity = fr_instance.main_loop(realsense_request)
+#         return voice_recognition_necessity
+
+
+
+#     def success_log(self, req): #成功メッセージの表示（callback関数）
+#         rospy.loginfo("\nリアルセンスサービスのリクエストがありました：\nmessage = {}\n".format(req.realsense_request))
+#         # self.call_openpose() #openposeの呼び出し
+#         voice_recognition_necessity = self.exec_face_recognition(req.realsense_request) #顔認識の実行
+#         self.service_message.voice_recognition_necessity = voice_recognition_necessity #クライアントに渡す返り値のメッセージ
+#         return self.service_message.voice_recognition_necessity #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
+
+
+
+#     def service_response(self): #サービスの応答
+#         srv = rospy.Service('voice_recognition_necessity_service', voice_recognition_necessity_service, self.success_log) #サービスのリクエストがあった場合にsuccess_log関数（callback関数）を呼び出し、実行。呼び出し先の関数内で返り値をreturnする必要がある
+
+
+
 def main():  # メイン関数
     # 初期化し、ノードの名前を設定
     rospy.init_node('fr_client2', anonymous=True)
+    rate = rospy.Rate(0.3) #1秒間に0.3回
     # クラスのインスタンス作成（クラス内の関数や変数を使えるようにする）
-    op_cli = op_Client()
-    op_cli.openpose_service_request()  # サービスのリクエスト
-    op = openpose()
-    op.op_start()
-    fr_instance = face_recognition()
-    fr_instance.main_loop()
-    # rospy.spin() #callback関数を繰り返し呼び出す（終了防止）
+    # op_cli = OP_Client()
+    # op_cli.openpose_service_request()  # サービスのリクエスト
+    # op = openpose()
+    # op.op_start()
+    # fr_instance = face_recognition()
+    # fr_instance.main_loop()
+    # srv = Realsense_Server() #クラスのインスタンス生成
+    # srv.service_response() #サービスの応答
+    # if srv.realsense_service_tf:
+    #     print("OK")
+    #     srv.call_openpose() #openposeの呼び出し
+    #     srv.exec_face_recognition(srv.realsense_request) #顔認識の実行
+    ras = Realsense_Action_Server() #クラスのインスタンス生成
+    rate.sleep()
+    rospy.spin() #コールバック関数を繰り返し呼び出す（終了防止）
 
 
 

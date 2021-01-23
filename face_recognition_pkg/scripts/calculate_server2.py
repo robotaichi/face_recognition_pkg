@@ -34,6 +34,7 @@ class Calculate():
     xmin, xmax = 0, 611
     ymin, ymax = 0, 360
     frames_count = -1
+    no_detect_count = 0
     
     # 関節点の指定
     # 角度aに使用
@@ -266,9 +267,11 @@ class Calculate():
         self.p6_x = vector_info[3]
         self.p7_x = vector_info[4]
         self.message1= self.angle_judge(a) #2つのベクトルのなす角による顔の向きの判定
-        self.json_file_number += 1
-        self.frames_count += 1
-        return json_file, a, openpose_version, self.message1, self.frames_count, self.diff
+        self.json_file_number += 1 #jsonファイル番号を1増やす
+        self.frames_count += 1 #フレーム数を1増やす
+        if self.message1 == "No Detect": #顔を検出しなかった場合
+            self.no_detect_count += 1 #未検出数を1増やす
+        return json_file, a, openpose_version, self.message1, self.frames_count, self.no_detect_count, self.diff
 
 
 
@@ -287,22 +290,23 @@ class Server(): #サーバーのクラス
 
 
     def make_msg(self): #送信するメッセージの作成
-        json_file, a, openpose_version, message1, frames_count, diff= self.call_Calculate() #Calculate関数を呼び出す
+        json_file, a, openpose_version, message1, frames_count, no_detect_count, diff= self.call_Calculate() #Calculate関数を呼び出す
         #配信するメッセージの作成
         self.calculate_message.a = a
         self.calculate_message.openpose_version = u"{}".format(openpose_version).encode("utf-8") #日本語も扱えるutf-8型にエンコード
         self.calculate_message.message1 = u"{}".format(message1).encode("utf-8") 
         self.calculate_message.frames_count = frames_count
+        self.calculate_message.no_detect_count = no_detect_count
         self.calculate_message.diff = diff
-        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.diff
+        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff
 
 
 
     def success_log(self, req): #成功メッセージの表示（callback関数）
         print("count:{}".format(self.count))
         self.count += 1
-        self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.diff = self.make_msg()
-        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.diff #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
+        self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff = self.make_msg()
+        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
 
 
 
