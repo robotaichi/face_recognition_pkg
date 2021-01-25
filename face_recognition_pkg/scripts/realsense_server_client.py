@@ -46,9 +46,6 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 #ファイルパス
 json_output_path = "/home/limlab/catkin_ws/src/face_recognition_pkg/output"
 openpose_params_json_file = "/home/limlab/catkin_ws/src/face_recognition_pkg/openpose_params.json"
-if os.path.exists(json_output_path): #既にjson_file_pathが存在する場合
-    shutil.rmtree(json_output_path)  # json形式ファイルの保存されたフォルダの削除（初期化）
-os.mkdir(json_output_path)  # json形式ファイルを保存するフォルダの作成
 file_input_path = '/home/limlab/ビデオ/src_hirano.mp4'  # 動画の読み込みパス
 movie = cv2.VideoCapture(file_input_path)  # 動画の読み込み
 video_output_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/output.mp4'  # 動画の書き込みパス
@@ -102,6 +99,9 @@ class openpose():  # OpenPoseのクラス
 
 
 class face_recognition():
+    if os.path.exists(json_output_path): #既にjson_file_pathが存在する場合
+        shutil.rmtree(json_output_path)  # json形式ファイルの保存されたフォルダの削除（初期化）
+        os.mkdir(json_output_path)  # json形式ファイルを保存するフォルダの作成
     # データとイメージの読み込み用パラメータ
     detection_model_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/haarcascade_files/haarcascade_frontalface_default.xml'
     emotion_model_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/models/_mini_XCEPTION.102-0.66.hdf5'
@@ -234,7 +234,7 @@ class face_recognition():
         if message1 == "Front": #正面の判定だった場合
             self.front_face_count += 1 #正面を向いたカウント数を1増やす
 
-        if len(faces) > 0:  # 顔が検出できた場合
+        if (len(faces) > 0) and (message1 == "Front"):  # 顔が検出できた場合
             # 要素の並び替え
             # reverse=True:降順ソート（ここでは、検出した順番と逆）
             # lambda（ラムダ）:無名関数。facesの要素xを受け取り、x[n]（n番目の要素）を返す
@@ -365,7 +365,7 @@ class face_recognition():
 
 
     def voice_recognition_necessity_judge(self, front_face_percentage, emotion_value): #音声録音の必要性の判定（再度説明する必要があるか尋ねるか尋ねないかの判定）
-        if (front_face_percentage >= 70) or (emotion_value > 0):
+        if (front_face_percentage >= 70) or (emotion_value > 20):
             self.voice_recognition_necessity = False
         else:
             self.voice_recognition_necessity = True
@@ -383,7 +383,7 @@ class face_recognition():
 
 
     def close_movies_and_windows(self): #動画やウィンドウを閉じる
-        self.cap.release() #読み込み動画を閉じる
+        # self.cap.release() #読み込み動画を閉じる
         self.video.release() #書き込み動画を閉じる
         cv2.destroyAllWindows() #すべてのウィンドウを閉じる
 
@@ -430,6 +430,7 @@ class face_recognition():
                 self.sub.realsense_tf = False
                 voice_recognition_necessity = self.finish(frames_count, no_detect_count)  # 終了
                 return voice_recognition_necessity #音声認識の必要性の有無（ブール値）を返す
+            time.sleep(0.01)
 
 
 
@@ -551,9 +552,10 @@ class Subscribers(): #サブスクライバーのクラス
     def __init__(self): #コンストラクタと呼ばれる初期化のための関数（メソッド）
         self.count = 0 
         self.realsense_tf = False
+        # self.rate = rospy.Rate(0.1) #1秒間に0.1回データを受信する
         #speech_recognition_message型のメッセージを"recognition_txt_topic"というトピックから受信するサブスクライバーの作成
         self.realsense_tf_subscriber = rospy.Subscriber('realsense_tf_topic', speech_recognition_message, self.callback)
-        # self.rate = rospy.Rate(0.1) #1秒間に0.1回データを受信する
+        # self.rate.sleep()
 
 
 

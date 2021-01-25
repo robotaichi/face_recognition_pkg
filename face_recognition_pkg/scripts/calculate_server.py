@@ -277,6 +277,7 @@ class Server(): #サーバーのクラス
         self.cal = Calculate() #Calculateクラスのインスタンス化(実体化)
         # self.rate = rospy.Rate(5)
         self.count = 0
+        rospy.loginfo("countのリセット:{}".format(self.count))
 
 
 

@@ -10,6 +10,7 @@ from natsort import natsorted
 from glob import glob
 import time
 import rospy
+from speech_recognition_pkg.msg import speech_recognition_message #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしメッセージファイル名）
 from face_recognition_pkg.msg import face_recognition_message #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしメッセージファイル名）
 from face_recognition_pkg.srv import calculate_service #サービスファイルの読み込み（from パッケージ名.srv import 拡張子なしサービスファイル名）
 import json
@@ -29,6 +30,8 @@ class Calculate():
     json_object_point_length_list = []
     json_object_3point_length_list = []
     json_object_4point_length_list = []
+    json_file_number = 0 #jsonファイル番号
+    json_file_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/output' #jsonファイルのあるパスを指定
     
     which = 0
     xmin, xmax = 0, 611
@@ -50,8 +53,6 @@ class Calculate():
     all_point_list = [point1, point2, point3, point4, point5, point6, point7]
     point_list1 = [point1, point2, point3]
     point_list2 = [point4, point5, point6, point7]
-    json_file_number = 0 #jsonファイル番号
-    json_file_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/output' #jsonファイルのあるパスを指定
 
 
 
@@ -71,6 +72,7 @@ class Calculate():
         self.m_length = 0
         self.n_length = 0
         self.rate = rospy.Rate(5)
+        self.sub = Subscribers()
 
 
 
@@ -247,7 +249,7 @@ class Calculate():
 
     def json_file_process(self): #jsonファイルの処理
         json_files = natsorted(glob(self.json_file_path + '/*_keypoints.json')) #指定パスにある"呼び出された段階での"全てのjsonファイルを人間が扱う数の自然な順番(natsorted：natural sorted。0から1,..10,..,100,..)に読み込む。globは*（ワイルドカード：任意の変数xに相当）を扱えるようにするもの。json形式ファイルが増えていく度にjson_filesの中身を更新する必要があるため、毎回呼び出されるところ（今回はこの行）に記述
-        #print(json_files)
+        # print(self.json_file_number)
         json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
         print(u"{}".format(os.path.basename(str(json_file))).encode("utf-8")) #日本語も扱えるutf-8型にエンコード
 
@@ -271,6 +273,9 @@ class Calculate():
         self.frames_count += 1 #フレーム数を1増やす
         if self.message1 == "No Detect": #顔を検出しなかった場合
             self.no_detect_count += 1 #未検出数を1増やす
+        if self.sub.realsense_tf:
+            self.sub.realsense_tf = False
+            self.json_file_number = 0
         return json_file, a, openpose_version, self.message1, self.frames_count, self.no_detect_count, self.diff
 
 
@@ -279,7 +284,7 @@ class Server(): #サーバーのクラス
     def __init__(self):
         self.calculate_message = calculate_service()
         self.cal = Calculate() #Calculateクラスのインスタンス化(実体化)
-        # self.rate = rospy.Rate(5)
+        self.rate = rospy.Rate(10) #1秒間に10回
         self.count = 0
 
 
@@ -306,12 +311,35 @@ class Server(): #サーバーのクラス
         print("count:{}".format(self.count))
         self.count += 1
         self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff = self.make_msg()
+        # self.rate.sleep()
         return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
 
 
 
     def service_response(self): #サービスの応答
         srv = rospy.Service('calculate_service', calculate_service, self.success_log) #サービスのリクエストがあった場合にsuccess_log関数（callback関数）を呼び出し、実行。呼び出し先の関数内で返り値をreturnする必要がある
+
+
+
+class Subscribers(): #サブスクライバーのクラス
+    def __init__(self): #コンストラクタと呼ばれる初期化のための関数（メソッド）
+        self.count = 0 
+        self.realsense_tf = False
+        # self.rate = rospy.Rate(0.1) #1秒間に0.1回データを受信する
+        #speech_recognition_message型のメッセージを"recognition_txt_topic"というトピックから受信するサブスクライバーの作成
+        self.realsense_tf_subscriber = rospy.Subscriber('realsense_tf_topic', speech_recognition_message, self.callback)
+        # self.rate.sleep()
+
+
+
+    def callback(self, message): #サブスクライバーがメッセージを受信した際に実行されるcallback関数。messageにはパブリッシャーによって配信されたメッセージ（データ）が入る
+        # 受信したデータを出力する
+        # rospy.loginfo("realsense_tfを受信（calculate_server2）：{}".format(message.realsense_tf))
+        self.realsense_tf = message.realsense_tf
+        # return self.realsense_tf
+        # srv = Server() #クラスのインスタンス生成
+        # srv.make_Text(play_end)
+        # srv.service_response() #サービスの応答
 
 
 
