@@ -71,7 +71,6 @@ class Calculate():
         self.n = 0
         self.m_length = 0
         self.n_length = 0
-        self.rate = rospy.Rate(5)
         self.sub = Subscribers()
 
 
@@ -288,7 +287,7 @@ class Server(): #サーバーのクラス
     def __init__(self):
         self.calculate_message = calculate_service()
         self.cal = Calculate() #Calculateクラスのインスタンス化(実体化)
-        self.rate = rospy.Rate(20) #1秒間に20回
+        self.rate = rospy.Rate(100) #1秒間に100回
         self.count = 0
         self.sub = Subscribers()
 

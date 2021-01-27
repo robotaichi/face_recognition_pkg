@@ -284,10 +284,8 @@ class face_recognition():
 
 
     def show_write_video(self, processed_frame, canvas, openpose_version, video):  # ビデオの表示と書き込み
-        cv2.imshow('OpenPose:{}'.format(
-            openpose_version), processed_frame)  # 顔の向き情報を追加した動画の表示
-        cv2.moveWindow('OpenPose:{}'.format(
-            openpose_version), 0, 0) #ウィンドウ位置の変更
+        cv2.imshow('OpenPose:{}'.format(openpose_version), processed_frame)  # 顔の向き情報を追加した動画の表示
+        cv2.moveWindow('OpenPose:{}'.format(openpose_version), 0, 0) #ウィンドウ位置の変更
         # cv2.imshow("video",frame_openpose)
         video.write(processed_frame)  # 1フレームずつ書き込み＝動画の作成
         # canvas = cv2.resize(canvas, (250,300)) #動画サイズの縮小
