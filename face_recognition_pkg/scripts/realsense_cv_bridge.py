@@ -11,6 +11,9 @@ from face_recognition_pkg.srv import calculate_service, face_recognition_service
 face_recognition_service_message = face_recognition_service()
 check_finish_service_message = check_finish_service()
 from face_recognition_pkg.msg import face_recognition_message, realsense_actionAction, realsense_actionResult, check_finish_actionAction, check_finish_actionResult, check_finish_actionGoal #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしアクションメッセージファイル名）。actionフォルダで定義した「アクションファイル名.action」ファイルを作成し、catkin_makeすると、「アクションファイル名Action.msg」、「アクションファイル名Feedback.msg」、「アクションファイル名ActionFeedback.msg」、「アクションファイル名Goal.msg」、「アクションファイル名ActionGoal.msg」、「アクションファイル名Result.msg」、「アクションファイル名ActionResult.msg」が生成される。生成されたアクションメッセージファイルは、「ls /home/limlab/catkin_ws/devel/share/パッケージ名/msg」コマンドで確認できる。アクションサーバ側は、「アクションファイル名Action.msg」、「アクションファイル名Result.msg」（途中経過が必要な場合は、「アクションファイル名Feedback.msg」）をインポートする。「アクションファイル名Goal.msg」は、アクションクライアントからリクエストがあった場合に呼び出されるコールバック関数の引数として取得できるため、アクションサーバ側は必要ない。アクションクライアント側は、「アクションファイル名Action.msg」、「アクションファイル名Result.msg」、「アクションファイル名Goal.msg」（途中経過が必要な場合は、「アクションファイル名Feedback.msg」）をインポートする。
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Point
+from cv_bridge import CvBridge, CvBridgeError
 from pyrealsensecv import RealsenseCapture #realsenseをcv2.VideoCapture(0)のように扱えるライブラリ
 import sys
 import json
@@ -42,6 +45,7 @@ warnings.filterwarnings('ignore')
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
 # opWrapper = op.WrapperPython()
+color_image = None
 
 #ファイルパス
 json_output_path = "/home/limlab/catkin_ws/src/face_recognition_pkg/output"
@@ -134,6 +138,7 @@ class face_recognition():
     negative_emotion_count = 0
     emotion_value = 0
     voice_recognition_necessity = False
+    
 
 
 
@@ -158,16 +163,44 @@ class face_recognition():
         self.red_color = (0, 0, 255)
         self.sky_blue_color = (255, 255, 0)
         self.yellow_color = (0, 255, 255)
-        self.rate = rospy.Rate(10)  # 1秒間に10回データを受信する
+
+        self.rate = rospy.Rate(1)
+        self.bridge = CvBridge()
+        self.image_shape = Point()
+        self.realsense_sub = rospy.Subscriber("/sciurus17/camera/color/image_raw", Image, self.image_callback, queue_size=1)
+        # rospy.spin()
+        # self.color_image = None
+        # self.color_image = np.zeros((480, 640, 3))
+        # self.color_image = np.arange(921600).reshape((480, 640, 3))
+
+
+
+    def image_callback(self, ros_image):
+        global color_image
+        cv_image = self.bridge.imgmsg_to_cv2(ros_image, "rgb8") #ROSイメージメッセージをOpenCVイメージ（GRB画像）に変換
+        # self.cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+        # Convert images to numpy arrays
+        color_image = np.array(cv_image)
+        # return self.color_image
+        # self.color_image = color_image
+        # print(self.color_image.size)
+        # return self.color_image
 
 
 
     def realsense_start(self, count):
-        cap = RealsenseCapture()
+        global color_image
+        # rtc = RealSense_To_CV()
+        # cap = RealsenseCapture()
         # プロパティの設定
-        W = cap.WIDTH
-        H = cap.HEIGHT
-        fps = cap.FPS
+        # print(rtc.image_sub)
+        # cap = rtc.image_sub
+        cap = color_image
+        # print(cap)
+        W = 640
+        H = 480
+        # print(W, H)
+        fps = 30
         fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')  # 動画保存時のfourcc設定（mp4用）
     # 書き込む動画の仕様（ファイル名、fourcc, FPS, サイズ）
     #video = cv2.VideoWriter(video_output_path, fourcc, int(fps), (W, H))
@@ -175,7 +208,7 @@ class face_recognition():
         # 書き込む動画の仕様（ファイル名、fourcc, FPS, サイズ）
         video = cv2.VideoWriter('/home/limlab/catkin_ws/src/face_recognition_pkg/output{}.mp4'.format(count), fourcc, int(fps), (W, H))
         # canvas_video = cv2.VideoWriter(canvas_output_path, fourcc, int(fps), (W, H))
-        cap.start() # cv2.VideoCapture()と違ってcap.start()を忘れずに
+        # cap.start() # cv2.VideoCapture()と違ってcap.start()を忘れずに
         return video, cap, W, H
 
 
@@ -217,8 +250,10 @@ class face_recognition():
         # OpenPoseによる画像処理
         datum = op.Datum()  # データ受け渡し用オブジェクト（データム）の作成
         # 動画から1フレーム読み込む。fragはret(return valueの略、戻り値の意味）の表記もあるが、同じもの。ブール値（TrueかFalse）の情報が入る。今回は使っていない。
-        frag, frames= cap.read()  # frames[0]にRGB、frames[1]にDepthの画像のndarrayが入っている
-        frame = frames[0] #RGB画像のフレームを取得
+        # frag, frames= cap.read()  # frames[0]にRGB、frames[1]にDepthの画像のndarrayが入っている
+        frame = cap
+        
+        # frame = frames[0] #RGB画像のフレームを取得
         datum.cvInputData = frame  # frameをdatum.cvInputDataに格納
         # リスト型で渡したデータム内に解析結果（出力画像、関節位置等々）が含まれている
         opWrapper.emplaceAndPop([datum])
@@ -284,15 +319,12 @@ class face_recognition():
 
 
     def show_write_video(self, processed_frame, canvas, openpose_version, video):  # ビデオの表示と書き込み
-        cv2.imshow('OpenPose:{}'.format(
+        cv2.imshow('OpenPose:{} (Exit with Q)'.format(
             openpose_version), processed_frame)  # 顔の向き情報を追加した動画の表示
-        cv2.moveWindow('OpenPose:{}'.format(
-            openpose_version), 0, 0) #ウィンドウ位置の変更
         # cv2.imshow("video",frame_openpose)
         video.write(processed_frame)  # 1フレームずつ書き込み＝動画の作成
         # canvas = cv2.resize(canvas, (250,300)) #動画サイズの縮小
         cv2.imshow("Emotion Probabilities", canvas)
-        cv2.moveWindow("Emotion Probabilities", 750, 0) #ウィンドウ位置の変更
         cv2.waitKey(1) #すぐに表示が終わってしまうのを回避。ミリ秒で指定
 
 
@@ -419,8 +451,9 @@ class face_recognition():
 
 
     def main_loop(self, opWrapper, count):  # メイン処理のループ
-        video, cap, W, H = self.realsense_start(count)
+        self.rate.sleep()
         while not rospy.is_shutdown():
+            video, cap, W, H = self.realsense_start(count)
             frame_openpose, gray_image, message1, frames_count, no_detect_count, diff = self.face_detection_setting(opWrapper, cap)  # 顔認識の設定
             faces = self.face_detection(gray_image)  # 顔認識の実行
             copy_frame_openpose, copy_canvas = self.cv2_show_setting(
@@ -440,7 +473,7 @@ class face_recognition():
                 self.sub.realsense_tf = False
                 voice_recognition_necessity = self.finish(frames_count, no_detect_count, count, video)  # 終了
                 return voice_recognition_necessity #音声認識の必要性の有無（ブール値）を返す
-            self.rate.sleep()
+            time.sleep(0.01)
 
 
 
@@ -509,6 +542,67 @@ class Check_Finish_Client():  # クライアントのクラス
 
         except rospy.ServiceException:
             rospy.loginfo("リアルセンスの終了確認サービスのリクエストに失敗")
+
+
+
+class RealSense_To_CV():
+    def __init__(self):
+        # self.H = 0
+        # self.W = 0
+        self.bridge = CvBridge()
+        self.image_shape = Point()
+        self.image_sub = rospy.Subscriber("/sciurus17/camera/color/image_raw", Image, self.image_callback, queue_size=1)
+        # self.image_pub = rospy.Publisher("~output_image", Image, queue_size=1)
+
+
+
+    def image_callback(self, ros_image):
+        try:
+            # op_cli = OP_Client()
+            # op_cli.openpose_service_request()  # サービスのリクエスト
+            # opWrapper = op.WrapperPython()
+            # self.op = openpose()
+            # self.op.op_start(opWrapper)
+            self.cv_image = self.bridge.imgmsg_to_cv2(ros_image, "rgb8") #ROSイメージメッセージをOpenCVイメージ（GRB画像）に変換
+            # self.cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            # Convert images to numpy arrays
+            self.color_image = np.array(self.cv_image)
+            # return ret, (color_image, depth_image)
+            # H, W, channel = self.cv_image.shape # 画像のwidth, heightを取得
+            # self.image_shape.x = color_image[1]
+            # self.image_shape.y = color_image[0]
+            # OpenPoseによる画像処理
+            # datum = op.Datum()  # データ受け渡し用オブジェクト（データム）の作成
+            # 動画から1フレーム読み込む。fragはret(return valueの略、戻り値の意味）の表記もあるが、同じもの。ブール値（TrueかFalse）の情報が入る。今回は使っていない。
+            # frag, frames= cap.read()  # frames[0]にRGB、frames[1]にDepthの画像のndarrayが入っている
+            # frame = color_image
+            # frame = frames[0] #RGB画像のフレームを取得
+            # datum.cvInputData = frame  # frameをdatum.cvInputDataに格納
+            # リスト型で渡したデータム内に解析結果（出力画像、関節位置等々）が含まれている
+            # opWrapper.emplaceAndPop([datum])
+            # frame_openpose = datum.cvOutputData  # OpenPoseの骨格を反映したフレーム
+            # frame_openpose = datum.cvOutputData  # OpenPoseの骨格を反映したフレーム
+        # グレースケール変換（顔検出に使用するため）
+            # self.H = self.image_shape.y
+            # self.W = self.image_shape.x
+            # print(self.W, self.H)
+            # self.H = H
+            # self.W = W
+            # cv2.imshow("Image window", frame_openpose)
+            # cv2.waitKey(3000)
+            # self.cv_image.flags.writeable = True
+            return self.color_image
+        except CvBridgeError as e:
+            rospy.logerr(e)
+        
+
+        # オブジェクト(特定色 or 顔) の検出
+        #output_image = self._detect_orange_object(input_image)
+        # output_image = self._detect_blue_object(input_image)
+        # output_image = self._detect_face(input_image)
+
+        # self._image_pub.publish(self._bridge.cv2_to_imgmsg(output_image, "bgr8"))
+
 
 
 

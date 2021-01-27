@@ -248,9 +248,6 @@ class Calculate():
 
 
     def json_file_process(self): #jsonファイルの処理
-        if self.sub.realsense_tf:
-            self.sub.realsense_tf = False
-            self.json_file_number = 0
         json_files = natsorted(glob(self.json_file_path + '/*_keypoints.json')) #指定パスにある"呼び出された段階での"全てのjsonファイルを人間が扱う数の自然な順番(natsorted：natural sorted。0から1,..10,..,100,..)に読み込む。globは*（ワイルドカード：任意の変数xに相当）を扱えるようにするもの。json形式ファイルが増えていく度にjson_filesの中身を更新する必要があるため、毎回呼び出されるところ（今回はこの行）に記述
         # print(self.json_file_number)
         json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
@@ -274,8 +271,15 @@ class Calculate():
         self.message1= self.angle_judge(a) #2つのベクトルのなす角による顔の向きの判定
         self.json_file_number += 1 #jsonファイル番号を1増やす
         self.frames_count += 1 #フレーム数を1増やす
+
         if self.message1 == "No Detect": #顔を検出しなかった場合
             self.no_detect_count += 1 #未検出数を1増やす
+
+        if self.sub.realsense_tf: #realsense_tfがTrueの場合
+            self.sub.realsense_tf = False
+            self.json_file_number = 0
+            rospy.loginfo("リセットOK")
+
         return json_file, a, openpose_version, self.message1, self.frames_count, self.no_detect_count, self.diff
 
 
@@ -284,8 +288,9 @@ class Server(): #サーバーのクラス
     def __init__(self):
         self.calculate_message = calculate_service()
         self.cal = Calculate() #Calculateクラスのインスタンス化(実体化)
-        self.rate = rospy.Rate(10) #1秒間に10回
+        self.rate = rospy.Rate(20) #1秒間に20回
         self.count = 0
+        self.sub = Subscribers()
 
 
 
@@ -312,6 +317,10 @@ class Server(): #サーバーのクラス
         self.count += 1
         self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff = self.make_msg()
         # self.rate.sleep()
+        if self.sub.realsense_tf: #realsense_tfがTrueの場合
+            self.sub.realsense_tf = False
+            self.count = 0
+            rospy.loginfo("リセットOK")
         return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
 
 
