@@ -249,7 +249,12 @@ class Calculate():
     def json_file_process(self): #jsonファイルの処理
         json_files = natsorted(glob(self.json_file_path + '/*_keypoints.json')) #指定パスにある"呼び出された段階での"全てのjsonファイルを人間が扱う数の自然な順番(natsorted：natural sorted。0から1,..10,..,100,..)に読み込む。globは*（ワイルドカード：任意の変数xに相当）を扱えるようにするもの。json形式ファイルが増えていく度にjson_filesの中身を更新する必要があるため、毎回呼び出されるところ（今回はこの行）に記述
         # print(self.json_file_number)
-        json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
+        try:
+            json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
+        except IndexError:
+            rospy.loginfo("リストインデックスの範囲外エラー")
+            self.json_file_number = 0
+            json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
         print(u"{}".format(os.path.basename(str(json_file))).encode("utf-8")) #日本語も扱えるutf-8型にエンコード
 
         json_object = json.load(json_file)  # json形式ファイルの中身を読み込む
@@ -268,6 +273,7 @@ class Calculate():
         self.p6_x = vector_info[3]
         self.p7_x = vector_info[4]
         self.message1= self.angle_judge(a) #2つのベクトルのなす角による顔の向きの判定
+
         self.json_file_number += 1 #jsonファイル番号を1増やす
         self.frames_count += 1 #フレーム数を1増やす
 
@@ -320,6 +326,7 @@ class Server(): #サーバーのクラス
             self.sub.realsense_tf = False
             self.count = 0
             rospy.loginfo("リセットOK")
+        self.rate.sleep()
         return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
 
 
@@ -333,10 +340,10 @@ class Subscribers(): #サブスクライバーのクラス
     def __init__(self): #コンストラクタと呼ばれる初期化のための関数（メソッド）
         self.count = 0 
         self.realsense_tf = False
-        # self.rate = rospy.Rate(0.1) #1秒間に0.1回データを受信する
+        self.rate = rospy.Rate(10) #1秒間に10回データを受信する
         #speech_recognition_message型のメッセージを"recognition_txt_topic"というトピックから受信するサブスクライバーの作成
         self.realsense_tf_subscriber = rospy.Subscriber('realsense_tf_topic', speech_recognition_message, self.callback)
-        # self.rate.sleep()
+        self.rate.sleep()
 
 
 
@@ -344,6 +351,8 @@ class Subscribers(): #サブスクライバーのクラス
         # 受信したデータを出力する
         # rospy.loginfo("realsense_tfを受信（calculate_server2）：{}".format(message.realsense_tf))
         self.realsense_tf = message.realsense_tf
+        cal = Calculate() #Calculateクラスのインスタンス化(実体化)
+        # rospy.loginfo("realsense_tfを受信")
         # return self.realsense_tf
         # srv = Server() #クラスのインスタンス生成
         # srv.make_Text(play_end)

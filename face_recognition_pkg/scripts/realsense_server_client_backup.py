@@ -159,7 +159,6 @@ class face_recognition():
         self.sky_blue_color = (255, 255, 0)
         self.yellow_color = (0, 255, 255)
         self.rate = rospy.Rate(10)  # 1秒間に10回データを受信する
-        self.frames_count = 0
 
 
 
@@ -226,8 +225,8 @@ class face_recognition():
         frame_openpose = datum.cvOutputData  # OpenPoseの骨格を反映したフレーム
         # グレースケール変換（顔検出に使用するため）
         gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        message1, no_detect_count, diff = self.call_calculate_service() #計算サービスを呼び出し、計算結果（返り値）を取得
-        return frame_openpose, gray_image, message1, no_detect_count, diff
+        message1, frames_count, no_detect_count, diff = self.call_calculate_service() #計算サービスを呼び出し、計算結果（返り値）を取得
+        return frame_openpose, gray_image, message1, frames_count, no_detect_count, diff
 
 
 
@@ -285,8 +284,8 @@ class face_recognition():
 
 
     def show_write_video(self, processed_frame, canvas, openpose_version, video):  # ビデオの表示と書き込み
-        cv2.imshow('OpenPose{}'.format(openpose_version), processed_frame)  # 顔の向き情報を追加した動画の表示
-        cv2.moveWindow('OpenPose{}'.format(openpose_version), 0, 0) #ウィンドウ位置の変更
+        cv2.imshow('OpenPose:{}'.format(openpose_version), processed_frame)  # 顔の向き情報を追加した動画の表示
+        cv2.moveWindow('OpenPose:{}'.format(openpose_version), 0, 0) #ウィンドウ位置の変更
         # cv2.imshow("video",frame_openpose)
         video.write(processed_frame)  # 1フレームずつ書き込み＝動画の作成
         # canvas = cv2.resize(canvas, (250,300)) #動画サイズの縮小
@@ -327,18 +326,18 @@ class face_recognition():
 
 
     def calculate_front_face_percentage(self, frames_count, no_detect_count, count): #正面を向いた割合を計算
-        # print("\nfront_face_count:{}".format(self.front_face_count)) #正面を向いた回数
-        # print("frames_count:{}".format(frames_count)) #フレーム数
-        # print("no_detect_count:{}".format(no_detect_count)) #顔の未検出数
+        print("\nfront_face_count:{}".format(self.front_face_count)) #正面を向いた回数
+        print("frames_count:{}".format(frames_count)) #フレーム数
+        print("no_detect_count:{}".format(no_detect_count)) #顔の未検出数
         numerator = float(self.front_face_count) #分子（正面を向いた回数）
-        denominator = float(frames_count) - float(no_detect_count) + 1 #分母（全体のフレーム数から顔の未検出数を引いた値）
-        # print("numerator:{}".format(numerator))
-        # print("denominator:{}".format(denominator))
+        denominator = float(frames_count) - float(no_detect_count) #分母（全体のフレーム数から顔の未検出数を引いた値）
+        print("numerator:{}".format(numerator))
+        print("denominator:{}".format(denominator))
         front_face_percentage = (numerator/ denominator)*100 #正面を向いた割合を計算
-        # print("front_face_percentage:{}%".format(front_face_percentage))
+        print("front_face_percentage:{}%".format(front_face_percentage))
         with open("/home/limlab/catkin_ws/src/face_recognition_pkg/info{}.csv".format(count), "a") as f: #csvファイルを追記モードで開く
             writer = csv.writer(f)
-            writer.writerow([front_face_percentage, float(self.front_face_count), float(frames_count+1), float(no_detect_count)]) #正面を向いた割合をcsvファイルに書き込み
+            writer.writerow([front_face_percentage, float(self.front_face_count), float(frames_count), float(no_detect_count)]) #正面を向いた割合をcsvファイルに書き込み
         return front_face_percentage
 
 
@@ -354,10 +353,10 @@ class face_recognition():
                 self.negative_emotion_count += 1
                 self.emotion_value -= 1
 
-        # print("positive_emotion_count:{}".format(self.positive_emotion_count))
-        # print("normal_emotion_count:{}".format(self.normal_emotion_count))
-        # print("negative_emotion_count:{}".format(self.negative_emotion_count))
-        # print("emotion_value:{}".format(self.emotion_value))
+        print("positive_emotion_count:{}".format(self.positive_emotion_count))
+        print("normal_emotion_count:{}".format(self.normal_emotion_count))
+        print("negative_emotion_count:{}".format(self.negative_emotion_count))
+        print("emotion_value:{}".format(self.emotion_value))
         with open("/home/limlab/catkin_ws/src/face_recognition_pkg/info{}.csv".format(count), "a") as f: #csvファイルを追記モードで開く
             writer = csv.writer(f)
             writer.writerow([self.emotion_value, self.positive_emotion_count, self.normal_emotion_count, self.negative_emotion_count]) #正面を向いた割合をcsvファイルに書き込み
@@ -369,12 +368,12 @@ class face_recognition():
         with open("/home/limlab/catkin_ws/src/face_recognition_pkg/info{}.csv".format(count), "a") as f: #csvファイルを追記モードで開く
             writer = csv.writer(f)
             emotion = self.emotion_list[frames_count]
-            writer.writerow([frames_count + 1, self.front_face_count, message1, emotion]) #フレーム数と正面を向いたフレームカウント数をcsvファイルに書き込み
+            writer.writerow([frames_count, self.front_face_count, message1, emotion]) #フレーム数と正面を向いたフレームカウント数をcsvファイルに書き込み
 
 
 
     def voice_recognition_necessity_judge(self, front_face_percentage, emotion_value, count): #音声録音の必要性の判定（再度説明する必要があるか尋ねるか尋ねないかの判定）
-        if (front_face_percentage >= 80) or (emotion_value > 20):
+        if (front_face_percentage >= 70) or (emotion_value > 20):
             self.voice_recognition_necessity = False
         else:
             self.voice_recognition_necessity = True
@@ -401,35 +400,26 @@ class face_recognition():
 
 
 
-    def delete_list(self):
-        if len(self.face_direction_list) > 0: #要素が１つでもある場合
-            del self.face_direction_list[:] #リストの要素を全削除（[:]で全指定）
-        if len(self.emotion_list) > 0: #要素が１つでもある場合
-            del self.emotion_list[:] #リストの要素を全削除（[:]で全指定）
-
-
-
     def finish(self, frames_count, no_detect_count, count, video): #終了処理
         print("\n終了")
         voice_recognition_necessity = self.request_voice_recognition_necessity(frames_count, no_detect_count, count) #音声認識の必要性の有無の要求
         self.close_movies_and_windows(video) #動画やウィンドウを閉じる
         self.plot_graph(count) #グラフにプロット
-        self.delete_list()
         #sys.exit()
         return voice_recognition_necessity
 
 
 
     def call_calculate_service(self):
-        message1, no_detect_count, diff = self.cli.calculate_service_request()
-        return message1, no_detect_count, diff
+        message1, frames_count, no_detect_count, diff = self.cli.calculate_service_request()
+        return message1, frames_count, no_detect_count, diff
 
 
 
     def main_loop(self, opWrapper, count):  # メイン処理のループ
         video, cap, W, H = self.realsense_start(count)
         while not rospy.is_shutdown():
-            frame_openpose, gray_image, message1, no_detect_count, diff = self.face_detection_setting(opWrapper, cap)  # 顔認識の設定
+            frame_openpose, gray_image, message1, frames_count, no_detect_count, diff = self.face_detection_setting(opWrapper, cap)  # 顔認識の設定
             faces = self.face_detection(gray_image)  # 顔認識の実行
             copy_frame_openpose, copy_canvas = self.cv2_show_setting(
                 faces, self.canvas, frame_openpose, gray_image, message1)  # ビデオ描画の設定
@@ -441,15 +431,14 @@ class face_recognition():
             self.show_write_video(
                 processed_frame, copy_canvas, self.message.openpose_version, video)  # ビデオの表示と書き込み
             self.diff_list.append(diff)
-            self.write_csv(self.frames_count, message1, count) #csvファイルに書き込み
+            self.write_csv(frames_count, message1, count) #csvファイルに書き込み
 
             # if cv2.waitKey(1) & 0xFF == ord('q'):  # qキーで終了
             if self.sub.realsense_tf: #realsense_tfを受信し、Trueだった場合
                 self.sub.realsense_tf = False
-                voice_recognition_necessity = self.finish(self.frames_count, no_detect_count, count, video)  # 終了
+                voice_recognition_necessity = self.finish(frames_count, no_detect_count, count, video)  # 終了
                 return voice_recognition_necessity #音声認識の必要性の有無（ブール値）を返す
             self.rate.sleep()
-            self.frames_count += 1
 
 
 
@@ -490,8 +479,8 @@ class Cal_Client():  # クライアントのクラス
             calculate_message.calculate_request = "計算をリクエスト"
             # 「戻り値 = self.client(引数)」。クライアントがsrvファイルで定義した引数（srvファイル内「---」の上側）を別ファイルのサーバーにリクエストし、サーバーからの返り値（srvファイル内「---」の下側）をresponseに代入
             response = self.client(calculate_message.calculate_request)
-            # rospy.loginfo("計算のリクエストに成功：{}".format(response))
-            return response.message1, response.no_detect_count, response.diff
+            rospy.loginfo("計算のリクエストに成功：{}".format(response))
+            return response.message1, response.frames_count, response.no_detect_count, response.diff
 
         except rospy.ServiceException:
             rospy.loginfo("計算のリクエストに失敗")
@@ -574,7 +563,7 @@ class Subscribers(): #サブスクライバーのクラス
 
     def callback(self, message): #サブスクライバーがメッセージを受信した際に実行されるcallback関数。messageにはパブリッシャーによって配信されたメッセージ（データ）が入る
         # 受信したデータを出力する
-        # rospy.loginfo("realsense_tfを受信：{}".format(message.realsense_tf))
+        rospy.loginfo("realsense_tfを受信：{}".format(message.realsense_tf))
         self.realsense_tf = message.realsense_tf
         fr = face_recognition()
 
