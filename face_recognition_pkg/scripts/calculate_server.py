@@ -3,17 +3,15 @@
 #上記2行は必須構文のため、コメント文だと思って削除しないこと
 #Python2.7用プログラム
 
-import os
-from numpy import linalg as LA
-import numpy as np
-from natsort import natsorted
-from glob import glob
-import time
-import rospy
-from face_recognition_pkg.msg import face_recognition_message #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしメッセージファイル名）
+import os #ファイルパスなどを扱うのに必要
+from numpy import linalg as LA #ノルムを取得するのに必要
+import numpy as np #numpy配列を扱うのに必要
+from natsort import natsorted #連番を自然な順番に修正するのに必要
+from glob import glob #ファイル名の連番を取得するのに必要
+import rospy #ROSをPythonで扱うのに必要
+from speech_recognition_pkg.msg import speech_recognition_message #メッセージファイルの読み込み（from パッケージ名.msg import 拡張子なしメッセージファイル名）
 from face_recognition_pkg.srv import calculate_service #サービスファイルの読み込み（from パッケージ名.srv import 拡張子なしサービスファイル名）
-import json
-import sys
+import json #Jsonファイルを扱うのに必要
 import traceback #エラーメッセージの表示に使用
 
 
@@ -29,11 +27,14 @@ class Calculate():
     json_object_point_length_list = []
     json_object_3point_length_list = []
     json_object_4point_length_list = []
+    json_file_number = 0 #jsonファイル番号
+    json_file_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/output' #jsonファイルのあるパスを指定
     
     which = 0
     xmin, xmax = 0, 611
     ymin, ymax = 0, 360
-    t_or_f = 0
+    frames_count = -1 #+1したときに0からはじまるように
+    no_detect_count = 0
     
     # 関節点の指定
     # 角度aに使用
@@ -49,8 +50,6 @@ class Calculate():
     all_point_list = [point1, point2, point3, point4, point5, point6, point7]
     point_list1 = [point1, point2, point3]
     point_list2 = [point4, point5, point6, point7]
-    json_file_number = 0 #jsonファイル番号
-    json_file_path = '/home/limlab/catkin_ws/src/face_recognition_pkg/output' #jsonファイルのあるパスを指定
 
 
 
@@ -69,7 +68,7 @@ class Calculate():
         self.n = 0
         self.m_length = 0
         self.n_length = 0
-        self.rate = rospy.Rate(5)
+        self.sub = Subscribers() #クラスのインスンタンス生成
 
 
 
@@ -153,11 +152,7 @@ class Calculate():
     def face_vector_calculate(self, point_list2, json_object): #m,nベクトルの長さや差の取得
         if self.json_object_people_length == 0:  # 取得した人数が0人の場合
             self.diff = 0  # 2つのベクトルの長さの差を0にする
-    
-        # if (self.p11_x == 0) or (self.p12_x == 0):  # 関節点11 or 12が取得できなかった場合
-        #     self.diff = 0
-        #     print("(self.p11_x == 0) or (self.p12_x == 0)")
-    
+
         else:  # json形式のファイルの中身から各関節点のx,y座標の値を取り出す
             if self.json_object_4point_length_list[0] > 0:  # 関節点4が取得できた場合
                 self.p4_x = json_object['part_candidates'][0][str(point_list2[0])][0]
@@ -216,13 +211,6 @@ class Calculate():
 
 
     def angle_judge(self, a): #2つのベクトルのなす角による顔の向きの判定
-        # if ((self.p6_x != 0) or (self.p7_x != 0)) and ((self.p13_x != 0) or (self.p14_x != 0)):  # 顔全体が画面内にある場合
-        #     self.t_or_f = 1
-        #     print("画面内に顔あり")
-        # else:  # 顔が一部分でも画面外にはみ出している場合
-        #     self.t_or_f = 0
-        #     print("画面外に顔あり")
-    
         if (self.diff <= -50):  # 右向き
             self.which = 0
         elif (self.diff > -50) and (self.diff < 50):  # 正面
@@ -246,15 +234,20 @@ class Calculate():
 
     def json_file_process(self): #jsonファイルの処理
         json_files = natsorted(glob(self.json_file_path + '/*_keypoints.json')) #指定パスにある"呼び出された段階での"全てのjsonファイルを人間が扱う数の自然な順番(natsorted：natural sorted。0から1,..10,..,100,..)に読み込む。globは*（ワイルドカード：任意の変数xに相当）を扱えるようにするもの。json形式ファイルが増えていく度にjson_filesの中身を更新する必要があるため、毎回呼び出されるところ（今回はこの行）に記述
-        #print(json_files)
-        json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
+        # print(self.json_file_number)
+        try:
+            json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
+        except IndexError:
+            rospy.loginfo("リストインデックスの範囲外エラー")
+            self.json_file_number = 0
+            json_file = open(json_files[self.json_file_number], mode = 'r') # OpenPoseにより書き込まれた「〜_keypoints.json」のファイルを読み込む
         print(u"{}".format(os.path.basename(str(json_file))).encode("utf-8")) #日本語も扱えるutf-8型にエンコード
 
         json_object = json.load(json_file)  # json形式ファイルの中身を読み込む
         json_file.close()
         openpose_version = json_object['version'] #OpenPoseのバージョンを取得s
         self.get_json_object_length(json_object) #json_objectの要素数の取得
-        a = self.joint_angle(json_object, self.point_list1, self.json_object_3point_length_list)  #2つのベクトルのなす角の取得
+        a = self.joint_angle(json_object, self.point_list1, self.json_object_3point_length_list) #2つのベクトルのなす角の取得
         # 関数の返り値をいっぺんに取得
         vector_info = self.face_vector_calculate(self.point_list2, json_object) #m,nベクトルの長さや差の取得
         # m_vector.append(vector_info[0]) #配列にmベクトルの長さ(m_length)の追加
@@ -266,8 +259,19 @@ class Calculate():
         self.p6_x = vector_info[3]
         self.p7_x = vector_info[4]
         self.message1= self.angle_judge(a) #2つのベクトルのなす角による顔の向きの判定
-        self.json_file_number += 1
-        return json_file, a, openpose_version, self.message1
+
+        self.json_file_number += 1 #jsonファイル番号を1増やす
+        self.frames_count += 1 #フレーム数を1増やす
+
+        if self.message1 == "No Detect": #顔を検出しなかった場合
+            self.no_detect_count += 1 #未検出数を1増やす
+
+        if self.sub.realsense_tf: #realsense_tfがTrueの場合
+            self.sub.realsense_tf = False
+            self.json_file_number = 0 #変数の初期化
+            rospy.loginfo("リセットOK")
+
+        return json_file, a, openpose_version, self.message1, self.frames_count, self.no_detect_count, self.diff
 
 
 
@@ -275,9 +279,9 @@ class Server(): #サーバーのクラス
     def __init__(self):
         self.calculate_message = calculate_service()
         self.cal = Calculate() #Calculateクラスのインスタンス化(実体化)
-        # self.rate = rospy.Rate(5)
+        self.rate = rospy.Rate(100) #1秒間に100回
         self.count = 0
-        rospy.loginfo("countのリセット:{}".format(self.count))
+        self.sub = Subscribers()
 
 
 
@@ -287,20 +291,28 @@ class Server(): #サーバーのクラス
 
 
     def make_msg(self): #送信するメッセージの作成
-        json_file, a, openpose_version, message1= self.call_Calculate() #Calculate関数を呼び出す
+        json_file, a, openpose_version, message1, frames_count, no_detect_count, diff= self.call_Calculate() #Calculate関数を呼び出す
         #配信するメッセージの作成
         self.calculate_message.a = a
         self.calculate_message.openpose_version = u"{}".format(openpose_version).encode("utf-8") #日本語も扱えるutf-8型にエンコード
         self.calculate_message.message1 = u"{}".format(message1).encode("utf-8") 
-        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1
+        self.calculate_message.frames_count = frames_count
+        self.calculate_message.no_detect_count = no_detect_count
+        self.calculate_message.diff = diff
+        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff
 
 
 
     def success_log(self, req): #成功メッセージの表示（callback関数）
-        print("count:{}".format(self.count))
         self.count += 1
-        self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1 = self.make_msg()
-        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1 #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
+        self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff = self.make_msg()
+        # self.rate.sleep()
+        if self.sub.realsense_tf: #realsense_tfがTrueの場合
+            self.sub.realsense_tf = False
+            self.count = 0 #カウントの初期化
+            rospy.loginfo("リセットOK")
+        self.rate.sleep()
+        return self.calculate_message.a, self.calculate_message.openpose_version, self.calculate_message.message1, self.calculate_message.frames_count, self.calculate_message.no_detect_count, self.calculate_message.diff #srvファイルで定義した返り値をsrvに渡す。rospy.Serviceによって呼び出された関数（callback関数）内でreturnすること
 
 
 
@@ -309,10 +321,28 @@ class Server(): #サーバーのクラス
 
 
 
+class Subscribers(): #サブスクライバーのクラス
+    def __init__(self): #コンストラクタと呼ばれる初期化のための関数（メソッド）
+        self.count = 0 
+        self.realsense_tf = False
+        self.rate = rospy.Rate(10) #1秒間に10回データを受信する
+        #speech_recognition_message型のメッセージを"recognition_txt_topic"というトピックから受信するサブスクライバーの作成
+        self.realsense_tf_subscriber = rospy.Subscriber('realsense_tf_topic', speech_recognition_message, self.callback)
+        self.rate.sleep()
+
+
+
+    def callback(self, message): #サブスクライバーがメッセージを受信した際に実行されるcallback関数。messageにはパブリッシャーによって配信されたメッセージ（データ）が入る
+        # 受信したデータを出力する
+        self.realsense_tf = message.realsense_tf
+        cal = Calculate() #Calculateクラスのインスタンス化(実体化)
+
+
+
 def main(): #メイン関数
     #初期化し、ノードの名前を設定
-    rospy.init_node('calculate', anonymous=True)
-    srv = Server()
+    rospy.init_node('calculate_server', anonymous=True)
+    srv = Server() #クラスのインスタンス生成
     srv.service_response() #サービスの応答
     rospy.spin() #callback関数を繰り返し呼び出す（終了防止）
 

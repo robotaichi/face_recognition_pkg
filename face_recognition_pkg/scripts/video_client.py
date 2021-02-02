@@ -336,7 +336,7 @@ class cal_Client():  # クライアントのクラス
 
 def main():  # メイン関数
     # 初期化し、ノードの名前を設定
-    rospy.init_node('fr_client2', anonymous=True)
+    rospy.init_node('video_client', anonymous=True)
     # クラスのインスタンス作成（クラス内の関数や変数を使えるようにする）
     op_cli = op_Client()
     op_cli.openpose_service_request()  # サービスのリクエスト
