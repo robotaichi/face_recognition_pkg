@@ -1,0 +1,10 @@
+ <!-- 
+1.ROSでPythonを実行する場合は、「type="ノード名"」に拡張子「.py」が必要
+2.Pythonファイルの実行権限の付与「chmod +x /パス/ファイル名.py」（「+x」はexecute「実行」権限を付与する「+」という意味）コマンドをターミナル上で実行する
+3.ターミナルでメッセージの出力を行う場合は、<node ~ />内に「output="screen"」を追記する
+-->
+
+<launch>
+  <node pkg="face_recognition_pkg" type="openpose_server.py" name="openpose_server" output="screen"/>
+  <node pkg="face_recognition_pkg" type="fr_client.py" name="fr_client" output="screen"/>
+</launch>
