@@ -1,9 +1,0 @@
-#引数（リクエスト変数）：入力
-#---
-#戻り値（リスポンス変数）：出力
-
-#pythonプログラム内の記述「戻り値response = self.client(引数)」。クライアントがsrvファイルで定義した引数（srvファイル内「---」の上側）を別ファイルのサーバーにリクエストし、サーバーからの返り値（srvファイル内「---」の下側）をresponseに代入
-
-string check_finish_request
----
-bool check_finish_response
